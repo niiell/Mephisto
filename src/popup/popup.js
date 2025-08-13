@@ -420,13 +420,17 @@ function parse_position_from_response(txt) {
         }
 
         let record;
-        const lastMoveRegex = /([\w-+=#]+[*]+)$/;
+        const lastMoveRegex = /([a-zA-Z0-9\-+=#]+[*]+)$/;
         const indirectKey = directKey.replace(lastMoveRegex, '');
         const indirectHit = fen_cache.get(indirectKey);
         if (indirectHit) { // append newest move
             console.log('INDIRECT');
             const chess = new Chess(config.variant, indirectHit.fen);
-            const moveReceipt = chess.move(txt.match(lastMoveRegex)[0].split('*****')[0]);
+            let move = txt.match(lastMoveRegex)[0].split('*****')[0];
+            if (move.includes('=M')) {
+                move = move.replace('=M', '=Q');
+            }
+            const moveReceipt = chess.move(move);
             turn = chess.turn();
             record = {fen: chess.fen(), startFen: indirectHit.startFen, moves: indirectHit.moves + ' ' + moveReceipt.lan}
         } else { // perform all moves
@@ -434,7 +438,10 @@ function parse_position_from_response(txt) {
             const chess = new Chess(config.variant, startFen);
             const sans = txt.split('*****').slice(0, -1);
             let moves = '';
-            for (const san of sans) {
+            for (let san of sans) {
+                if (san.includes('=M')) {
+                    san = san.replace('=M', '=Q');
+                }
                 const moveReceipt = chess.move(san);
                 moves += moveReceipt.lan + ' ';
             }
@@ -512,7 +519,7 @@ function request_fen() {
 }
 
 function request_automove(move) {
-    const message = (config.puzzle_mode)
+    const message = (config.puzzle_mode && last_eval.lines[0])
         ? {automove: true, pv: last_eval.lines[0].pv.split(' ') || [move]}
         : {automove: true, move: move};
     chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
